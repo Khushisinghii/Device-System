@@ -28,7 +28,7 @@ class _ProfilePageState extends State<ProfilePage> {
   static const Color _orange = Color(0xFFFF6600);
 
   final String baseUrl =
-      "https://huntington-ware-seasons-first.trycloudflare.com";
+      "https://partners-vegetables-algebra-dryer.trycloudflare.com";
   Map<String, dynamic>? data;
   bool loading = true;
   Timer? _refreshTimer;
@@ -54,8 +54,9 @@ class _ProfilePageState extends State<ProfilePage> {
       setState(() => loading = true);
     }
     try {
-      final res = await ApiService.get(Uri.parse(ApiRoutes.userDashboard(widget.userId)))
-          .timeout(const Duration(seconds: 10));
+      final res = await ApiService.get(
+        Uri.parse(ApiRoutes.userDashboard(widget.userId)),
+      ).timeout(const Duration(seconds: 10));
       if (res.statusCode == 200) {
         final json = jsonDecode(res.body);
         if (json["status"] == true && json["data"] != null) {

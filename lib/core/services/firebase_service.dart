@@ -79,7 +79,7 @@ class FcmService {
 
       final response = await ApiService.post(
         Uri.parse(
-          "https://huntington-ware-seasons-first.trycloudflare.com/update_fcm_token",
+          "https://partners-vegetables-algebra-dryer.trycloudflare.com/update_fcm_token",
         ),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({"user_id": userId, "fcm_token": token}),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import '../../core/services/api_service.dart';
+import '../../routes/app_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../pages/auth/forgot_password.dart';
@@ -270,18 +271,15 @@ class _LoginPageState extends State<LoginPage> {
                                   http.Response response;
                                   try {
                                     response = await ApiService.post(
-                                          Uri.parse(
-                                            "https://huntington-ware-seasons-first.trycloudflare.com/login",
-                                          ),
-                                          headers: headers,
-                                          body: jsonEncode({
-                                            "username": usernameController.text
-                                                .trim(),
-                                            "password": passwordController.text
-                                                .trim(),
-                                          }),
-                                        )
-                                        .timeout(const Duration(seconds: 20));
+                                      Uri.parse(ApiRoutes.login),
+                                      headers: headers,
+                                      body: jsonEncode({
+                                        "username": usernameController.text
+                                            .trim(),
+                                        "password": passwordController.text
+                                            .trim(),
+                                      }),
+                                    ).timeout(const Duration(seconds: 20));
                                   } catch (e) {
                                     if (!mounted) return;
                                     AppDialogs.showError(
@@ -330,7 +328,10 @@ class _LoginPageState extends State<LoginPage> {
                                     final prefs =
                                         await SharedPreferences.getInstance();
                                     if (data["token"] != null) {
-                                      await prefs.setString("jwt_token", data["token"]);
+                                      await prefs.setString(
+                                        "jwt_token",
+                                        data["token"],
+                                      );
                                     }
                                     await prefs.setBool("isLoggedIn", true);
                                     await prefs.setString(

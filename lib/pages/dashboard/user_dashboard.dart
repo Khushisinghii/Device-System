@@ -24,7 +24,7 @@ class _UserDashboardState extends State<UserDashboard> {
   static const Color _orange = Color(0xFFFF6600);
 
   final String baseUrl =
-      "https://huntington-ware-seasons-first.trycloudflare.com";
+      "https://partners-vegetables-algebra-dryer.trycloudflare.com";
   Map<String, dynamic> data = {};
   bool loading = true;
   bool hasError = false;
@@ -60,8 +60,9 @@ class _UserDashboardState extends State<UserDashboard> {
       });
     }
     try {
-      final res = await ApiService.get(Uri.parse("$baseUrl/user_dashboard/${widget.userId}"))
-          .timeout(const Duration(seconds: 10));
+      final res = await ApiService.get(
+        Uri.parse("$baseUrl/user_dashboard/${widget.userId}"),
+      ).timeout(const Duration(seconds: 10));
       if (res.statusCode == 200) {
         final json = jsonDecode(res.body);
         if (json["status"] == true && json["data"] != null) {
@@ -88,8 +89,9 @@ class _UserDashboardState extends State<UserDashboard> {
 
   Future<void> _checkNewNotifications() async {
     try {
-      final res = await ApiService.get(Uri.parse("$baseUrl/notifications/${widget.userId}"))
-          .timeout(const Duration(seconds: 10));
+      final res = await ApiService.get(
+        Uri.parse("$baseUrl/notifications/${widget.userId}"),
+      ).timeout(const Duration(seconds: 10));
       if (res.statusCode == 200) {
         final List<dynamic> fetchedNotifications = jsonDecode(res.body)["data"];
         final prefs = await SharedPreferences.getInstance();
@@ -140,8 +142,9 @@ class _UserDashboardState extends State<UserDashboard> {
 
     // 2. Fetch the current count and save it to preferences
     try {
-      final res = await ApiService.get(Uri.parse("$baseUrl/notifications/${widget.userId}"))
-          .timeout(const Duration(seconds: 10));
+      final res = await ApiService.get(
+        Uri.parse("$baseUrl/notifications/${widget.userId}"),
+      ).timeout(const Duration(seconds: 10));
       if (res.statusCode == 200) {
         final count = (jsonDecode(res.body)["data"] as List).length;
         final prefs = await SharedPreferences.getInstance();

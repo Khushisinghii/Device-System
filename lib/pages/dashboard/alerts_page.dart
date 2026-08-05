@@ -37,7 +37,7 @@ class _AlertsPageState extends State<AlertsPage> {
   static const Color _orange = Color(0xFFFF6600);
 
   final String baseUrl =
-      "https://huntington-ware-seasons-first.trycloudflare.com";
+      "https://partners-vegetables-algebra-dryer.trycloudflare.com";
   List<AppAlert> _alerts = [];
   bool _loading = true;
   bool _hasError = false;
@@ -71,8 +71,9 @@ class _AlertsPageState extends State<AlertsPage> {
         return;
       }
 
-      final res = await ApiService.get(Uri.parse("$baseUrl/notifications/$_userId"))
-          .timeout(const Duration(seconds: 10));
+      final res = await ApiService.get(
+        Uri.parse("$baseUrl/notifications/$_userId"),
+      ).timeout(const Duration(seconds: 10));
 
       if (res.statusCode == 200) {
         final json = jsonDecode(res.body);
@@ -141,11 +142,10 @@ class _AlertsPageState extends State<AlertsPage> {
 
     try {
       final res = await ApiService.post(
-            Uri.parse("$baseUrl/notifications/delete"),
-            headers: {"Content-Type": "application/json"},
-            body: jsonEncode({"ids": ids}),
-          )
-          .timeout(const Duration(seconds: 10));
+        Uri.parse("$baseUrl/notifications/delete"),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({"ids": ids}),
+      ).timeout(const Duration(seconds: 10));
 
       if (res.statusCode == 200) {
         final json = jsonDecode(res.body);
@@ -299,8 +299,9 @@ class _AlertsPageState extends State<AlertsPage> {
     });
 
     try {
-      final res = await ApiService.delete(Uri.parse("$baseUrl/notifications/$_userId"))
-          .timeout(const Duration(seconds: 10));
+      final res = await ApiService.delete(
+        Uri.parse("$baseUrl/notifications/$_userId"),
+      ).timeout(const Duration(seconds: 10));
       if (res.statusCode == 200) {
         final json = jsonDecode(res.body);
         if (json["status"] == true) {

@@ -25,22 +25,22 @@ class AppRouter {
   static const String signup = '/signup';
   static const String forgotPassword = '/forgotPassword';
   static const String loading = '/loading';
-  
+
   static const String adminDashboard = '/adminDashboard';
   static const String userDashboard = '/userDashboard';
   static const String userHome = '/userHome';
   static const String alerts = '/alerts';
-  
+
   static const String map = '/map';
   static const String history = '/history';
-  
+
   static const String geofence = '/geofence';
   static const String addZone = '/addZone';
-  
+
   static const String profile = '/profile';
   static const String editProfile = '/editProfile';
   static const String deviceInfo = '/deviceInfo';
-  
+
   static const String settings = '/settings';
   static const String sos = '/sos';
 
@@ -49,7 +49,6 @@ class AppRouter {
     final args = routeSettings.arguments as Map<String, dynamic>? ?? {};
 
     switch (routeSettings.name) {
-      
       // -- AUTH --
       case login:
         return MaterialPageRoute(builder: (_) => const LoginPage());
@@ -88,15 +87,11 @@ class AppRouter {
       // -- TRACKING & HISTORY --
       case map:
         return MaterialPageRoute(
-          builder: (_) => MapPage(
-            userId: args['userId'] as int? ?? 0,
-          ),
+          builder: (_) => MapPage(userId: args['userId'] as int? ?? 0),
         );
       case history:
         return MaterialPageRoute(
-          builder: (_) => HistoryPage(
-            userId: args['userId'] as int? ?? 0,
-          ),
+          builder: (_) => HistoryPage(userId: args['userId'] as int? ?? 0),
         );
 
       // -- GEOFENCE --
@@ -104,17 +99,13 @@ class AppRouter {
         return MaterialPageRoute(builder: (_) => const GeofencePage());
       case addZone:
         return MaterialPageRoute(
-          builder: (_) => AddZonePage(
-            editZone: args['editZone'],
-          ),
+          builder: (_) => AddZonePage(editZone: args['editZone']),
         );
 
       // -- PROFILE --
       case profile:
         return MaterialPageRoute(
-          builder: (_) => ProfilePage(
-            userId: args['userId'] as int? ?? 0,
-          ),
+          builder: (_) => ProfilePage(userId: args['userId'] as int? ?? 0),
         );
       case editProfile:
         return MaterialPageRoute(
@@ -125,23 +116,17 @@ class AppRouter {
         );
       case deviceInfo:
         return MaterialPageRoute(
-          builder: (_) => DeviceInfoPage(
-            userId: args['userId'] as int? ?? 0,
-          ),
+          builder: (_) => DeviceInfoPage(userId: args['userId'] as int? ?? 0),
         );
 
       // -- SETTINGS & SOS --
       case settings:
         return MaterialPageRoute(
-          builder: (_) => SettingsPage(
-            userId: args['userId'] as int? ?? 0,
-          ),
+          builder: (_) => SettingsPage(userId: args['userId'] as int? ?? 0),
         );
       case sos:
         return MaterialPageRoute(
-          builder: (_) => SosPage(
-            userId: args['userId'] as int? ?? 0,
-          ),
+          builder: (_) => SosPage(userId: args['userId'] as int? ?? 0),
         );
 
       // -- FALLBACK --
@@ -149,7 +134,9 @@ class AppRouter {
         return MaterialPageRoute(
           builder: (_) => Scaffold(
             appBar: AppBar(title: const Text('Error')),
-            body: Center(child: Text('No route defined for ${routeSettings.name}')),
+            body: Center(
+              child: Text('No route defined for ${routeSettings.name}'),
+            ),
           ),
         );
     }
@@ -157,7 +144,8 @@ class AppRouter {
 }
 
 class ApiRoutes {
-  static const String baseUrl = 'https://huntington-ware-seasons-first.trycloudflare.com';
+  static const String baseUrl =
+      'https://partners-vegetables-algebra-dryer.trycloudflare.com';
 
   // -- AUTH --
   static const String login = '$baseUrl/login';
@@ -181,10 +169,11 @@ class ApiRoutes {
   // -- GEOFENCE --
   static String geofences(int userId) => '$baseUrl/geofences/$userId';
   static String geofenceZone(int zoneId) => '$baseUrl/geofences/$zoneId';
-  
+
   // -- TRACKING & HISTORY --
-  static String locationHistory(int userId, String date) => '$baseUrl/location_history/$userId?date=$date';
-  
+  static String locationHistory(int userId, String date) =>
+      '$baseUrl/location_history/$userId?date=$date';
+
   // -- SOS & DEVICE --
   static String sos(int userId) => '$baseUrl/sos/$userId';
 }

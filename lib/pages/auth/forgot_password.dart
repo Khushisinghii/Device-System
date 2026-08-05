@@ -25,7 +25,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
 
   // Update this to your server IP
   final String baseUrl =
-      "https://huntington-ware-seasons-first.trycloudflare.com";
+      "https://partners-vegetables-algebra-dryer.trycloudflare.com";
 
   @override
   Widget build(BuildContext context) {

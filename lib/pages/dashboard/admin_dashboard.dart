@@ -10,7 +10,7 @@ import '../../pages/history/history_page.dart';
 
 // --- CONFIGURATION ---
 const String BASE_URL =
-    "https://huntington-ware-seasons-first.trycloudflare.com";
+    "https://partners-vegetables-algebra-dryer.trycloudflare.com";
 
 class User {
   final int id;
@@ -511,11 +511,12 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     final url = isEdit
                         ? '$BASE_URL/users/${user.id}'
                         : '$BASE_URL/users';
-                    final response = await (isEdit ? ApiService.put : ApiService.post)(
-                      Uri.parse(url),
-                      headers: {"Content-Type": "application/json"},
-                      body: jsonEncode(body),
-                    );
+                    final response =
+                        await (isEdit ? ApiService.put : ApiService.post)(
+                          Uri.parse(url),
+                          headers: {"Content-Type": "application/json"},
+                          body: jsonEncode(body),
+                        );
                     if (response.statusCode < 300) {
                       Navigator.pop(context);
                       loadDashboardData();

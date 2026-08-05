@@ -21,7 +21,7 @@ class _HistoryPageState extends State<HistoryPage> {
   static const Color _orange = Color(0xFFFF6600);
 
   final String baseUrl =
-      "https://huntington-ware-seasons-first.trycloudflare.com";
+      "https://partners-vegetables-algebra-dryer.trycloudflare.com";
 
   DateTime selectedDate = DateTime.now();
   bool loading = true;
@@ -38,6 +38,7 @@ class _HistoryPageState extends State<HistoryPage> {
   List<LatLng> _fullSnappedRoute = [];
   RangeValues _timeRange = const RangeValues(0, 24);
   bool _showFilters = true;
+  bool _isMapView = true; // Added state for view toggle
 
   double totalDistanceMeters = 0;
 
@@ -256,16 +257,12 @@ class _HistoryPageState extends State<HistoryPage> {
       final dateStr = selectedDate.toIso8601String().split('T')[0];
 
       final responses = await Future.wait([
-        ApiService
-            .get(
-              Uri.parse(
-                "$baseUrl/location_history/${widget.userId}?date=$dateStr",
-              ),
-            )
-            .timeout(const Duration(seconds: 15)),
-        ApiService
-            .get(Uri.parse("$baseUrl/geofences/${widget.userId}"))
-            .timeout(const Duration(seconds: 15)),
+        ApiService.get(
+          Uri.parse("$baseUrl/location_history/${widget.userId}?date=$dateStr"),
+        ).timeout(const Duration(seconds: 15)),
+        ApiService.get(
+          Uri.parse("$baseUrl/geofences/${widget.userId}"),
+        ).timeout(const Duration(seconds: 15)),
       ]);
 
       final res = responses[0];
@@ -1231,6 +1228,85 @@ class _HistoryPageState extends State<HistoryPage> {
             ),
           ),
 
+          // ── VIEW TOGGLE ──
+          Container(
+            margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: _card,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white.withOpacity(0.05)),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => setState(() => _isMapView = true),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
+                        color: _isMapView ? _orange : Colors.transparent,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      alignment: Alignment.center,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.map_rounded,
+                            size: 18,
+                            color: _isMapView ? Colors.white : Colors.grey,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            "Map View",
+                            style: TextStyle(
+                              color: _isMapView ? Colors.white : Colors.grey,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => setState(() => _isMapView = false),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
+                        color: !_isMapView ? _orange : Colors.transparent,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      alignment: Alignment.center,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.list_alt_rounded,
+                            size: 18,
+                            color: !_isMapView ? Colors.white : Colors.grey,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            "Details View",
+                            style: TextStyle(
+                              color: !_isMapView ? Colors.white : Colors.grey,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
           // ── DATE NAVIGATOR ──
           if (_showFilters)
             Container(
@@ -1361,96 +1437,6 @@ class _HistoryPageState extends State<HistoryPage> {
               ),
             ),
 
-          // ── MAP VIEW (Top 40%) ──
-          if (!loading && !hasError && history.isNotEmpty)
-            SizedBox(
-              height: MediaQuery.of(context).size.height * 0.38,
-              child: ClipRRect(
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(24),
-                  bottomRight: Radius.circular(24),
-                ),
-                child: GoogleMap(
-                  initialCameraPosition: CameraPosition(
-                    target: LatLng(
-                      double.tryParse(
-                            history.first["latitude"]?.toString() ?? "11.0252",
-                          ) ??
-                          11.0252,
-                      double.tryParse(
-                            history.first["longitude"]?.toString() ?? "76.9682",
-                          ) ??
-                          76.9682,
-                    ),
-                    zoom: 14,
-                  ),
-                  mapType: MapType.normal,
-                  myLocationButtonEnabled: false,
-                  zoomControlsEnabled: false,
-                  markers: _markers,
-                  polylines: _polylines,
-                  circles: _buildCircles(),
-                  onMapCreated: (controller) {
-                    _mapController = controller;
-                    if (history.isNotEmpty) {
-                      final lat =
-                          double.tryParse(
-                            history.first["latitude"]?.toString() ?? "",
-                          ) ??
-                          0.0;
-                      final lng =
-                          double.tryParse(
-                            history.first["longitude"]?.toString() ?? "",
-                          ) ??
-                          0.0;
-                      if (lat != 0.0) {
-                        _mapController?.animateCamera(
-                          CameraUpdate.newCameraPosition(
-                            CameraPosition(target: LatLng(lat, lng), zoom: 14),
-                          ),
-                        );
-                      }
-                    }
-                  },
-                ),
-              ),
-            ),
-
-          // ── STATS ROW ──
-          if (!loading && !hasError && history.isNotEmpty)
-            Container(
-              margin: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-              decoration: BoxDecoration(
-                color: _card,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withOpacity(0.07)),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _statChip(
-                    Icons.straighten_rounded,
-                    "Distance",
-                    _formatDist(totalDistanceMeters),
-                  ),
-                  _statDivider(),
-                  _statChip(
-                    Icons.pin_drop_rounded,
-                    "Points",
-                    "${history.length}",
-                  ),
-                  _statDivider(),
-                  _statChip(
-                    Icons.pause_circle_outline_rounded,
-                    "Stops",
-                    "${detectedStops.length}",
-                  ),
-                ],
-              ),
-            ),
-
-          // ── TIMELINE DETAIL LIST ──
           Expanded(
             child: loading
                 ? const AppLoadingWidget()
@@ -1458,9 +1444,120 @@ class _HistoryPageState extends State<HistoryPage> {
                 ? _buildError()
                 : history.isEmpty
                 ? _buildEmpty()
-                : _buildTimeline().isEmpty
-                ? _buildEmpty()
-                : _buildTimelineList(_buildTimeline()),
+                : _isMapView
+                ? _buildMapView()
+                : _buildDetailsView(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMapView() {
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: ClipRRect(
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(24),
+              topRight: Radius.circular(24),
+            ),
+            child: GoogleMap(
+              initialCameraPosition: CameraPosition(
+                target: LatLng(
+                  double.tryParse(
+                        history.first["latitude"]?.toString() ?? "11.0252",
+                      ) ??
+                      11.0252,
+                  double.tryParse(
+                        history.first["longitude"]?.toString() ?? "76.9682",
+                      ) ??
+                      76.9682,
+                ),
+                zoom: 14,
+              ),
+              mapType: MapType.normal,
+              myLocationButtonEnabled: false,
+              zoomControlsEnabled: false,
+              markers: _markers,
+              polylines: _polylines,
+              circles: _buildCircles(),
+              onMapCreated: (controller) {
+                _mapController = controller;
+                if (history.isNotEmpty) {
+                  final lat =
+                      double.tryParse(
+                        history.first["latitude"]?.toString() ?? "",
+                      ) ??
+                      0.0;
+                  final lng =
+                      double.tryParse(
+                        history.first["longitude"]?.toString() ?? "",
+                      ) ??
+                      0.0;
+                  if (lat != 0.0) {
+                    _mapController?.animateCamera(
+                      CameraUpdate.newCameraPosition(
+                        CameraPosition(target: LatLng(lat, lng), zoom: 14),
+                      ),
+                    );
+                  }
+                }
+              },
+            ),
+          ),
+        ),
+        Positioned(bottom: 12, left: 16, right: 16, child: _buildStatsCard()),
+      ],
+    );
+  }
+
+  Widget _buildDetailsView() {
+    final events = _buildTimeline();
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: _buildStatsCard(),
+        ),
+        if (events.isEmpty)
+          Expanded(child: _buildEmpty())
+        else
+          Expanded(child: _buildTimelineList(events)),
+      ],
+    );
+  }
+
+  Widget _buildStatsCard() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      decoration: BoxDecoration(
+        color: _card,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withOpacity(0.07)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.3),
+            blurRadius: 10,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _statChip(
+            Icons.straighten_rounded,
+            "Distance",
+            _formatDist(totalDistanceMeters),
+          ),
+          _statDivider(),
+          _statChip(Icons.pin_drop_rounded, "Points", "${history.length}"),
+          _statDivider(),
+          _statChip(
+            Icons.pause_circle_outline_rounded,
+            "Stops",
+            "${detectedStops.length}",
           ),
         ],
       ),

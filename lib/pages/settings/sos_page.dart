@@ -47,7 +47,7 @@ class _SosPageState extends State<SosPage> {
     try {
       final res = await ApiService.get(
         Uri.parse(
-          'https://huntington-ware-seasons-first.trycloudflare.com/user/sos/${widget.userId}',
+          'https://partners-vegetables-algebra-dryer.trycloudflare.com/user/sos/${widget.userId}',
         ),
       );
       if (res.statusCode == 200) {
@@ -95,7 +95,7 @@ class _SosPageState extends State<SosPage> {
       };
       await ApiService.post(
         Uri.parse(
-          'https://huntington-ware-seasons-first.trycloudflare.com/user/sos/${widget.userId}',
+          'https://partners-vegetables-algebra-dryer.trycloudflare.com/user/sos/${widget.userId}',
         ),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(payload),
@@ -120,7 +120,7 @@ class _SosPageState extends State<SosPage> {
     try {
       final res = await ApiService.get(
         Uri.parse(
-          'https://huntington-ware-seasons-first.trycloudflare.com/user_dashboard/${widget.userId}',
+          'https://partners-vegetables-algebra-dryer.trycloudflare.com/user_dashboard/${widget.userId}',
         ),
       );
       if (res.statusCode == 200) {

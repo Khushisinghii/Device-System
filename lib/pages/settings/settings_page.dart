@@ -26,7 +26,7 @@ class _SettingsPageState extends State<SettingsPage> {
   static const Color _orange = Color(0xFFFF6600);
 
   final String baseUrl =
-      "https://huntington-ware-seasons-first.trycloudflare.com";
+      "https://partners-vegetables-algebra-dryer.trycloudflare.com";
 
   bool _notifyLowBattery = true;
   bool _notifyFullBattery = true;
@@ -42,9 +42,9 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<void> _loadSettings() async {
     try {
-      final res = await ApiService
-          .get(Uri.parse(ApiRoutes.userDashboard(widget.userId)))
-          .timeout(const Duration(seconds: 10));
+      final res = await ApiService.get(
+        Uri.parse(ApiRoutes.userDashboard(widget.userId)),
+      ).timeout(const Duration(seconds: 10));
       if (res.statusCode == 200) {
         final json = jsonDecode(res.body);
         if (json["status"] == true && json["data"] != null) {
@@ -72,13 +72,11 @@ class _SettingsPageState extends State<SettingsPage> {
         "notify_geofence": _notifyGeofence ? 1 : 0,
         "notify_speed": _notifySpeed ? 1 : 0,
       });
-      await ApiService
-          .put(
+      await ApiService.put(
         Uri.parse(ApiRoutes.userSettings(widget.userId)),
-            headers: headers,
-            body: body,
-          )
-          .timeout(const Duration(seconds: 5));
+        headers: headers,
+        body: body,
+      ).timeout(const Duration(seconds: 5));
     } catch (_) {}
   }
 

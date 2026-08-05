@@ -27,7 +27,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   final Color panelBg = const Color(0xF2FFFFFF);
 
   final String baseUrl =
-      "https://huntington-ware-seasons-first.trycloudflare.com";
+      "https://partners-vegetables-algebra-dryer.trycloudflare.com";
 
   // --- Map state ---
   GoogleMapController? mapController;
@@ -99,8 +99,9 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
 
   Future<void> loadLocation() async {
     try {
-      final response = await ApiService.get(Uri.parse("$baseUrl/user_dashboard/${widget.userId}"))
-          .timeout(const Duration(seconds: 10));
+      final response = await ApiService.get(
+        Uri.parse("$baseUrl/user_dashboard/${widget.userId}"),
+      ).timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body);
@@ -1003,9 +1004,8 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
     try {
       final today = DateTime.now().toIso8601String().split('T')[0];
       final response = await ApiService.get(
-            Uri.parse("$baseUrl/location_history/${widget.userId}?date=$today"),
-          )
-          .timeout(const Duration(seconds: 10));
+        Uri.parse("$baseUrl/location_history/${widget.userId}?date=$today"),
+      ).timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body);

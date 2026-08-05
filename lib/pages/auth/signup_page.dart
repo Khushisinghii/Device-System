@@ -52,7 +52,7 @@ class _SignupPageState extends State<SignupPage> {
 
       final response = await ApiService.post(
         Uri.parse(
-          "https://huntington-ware-seasons-first.trycloudflare.com/signup",
+          "https://partners-vegetables-algebra-dryer.trycloudflare.com/signup",
         ),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({

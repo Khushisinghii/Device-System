@@ -25,7 +25,7 @@ class _AddZonePageState extends State<AddZonePage>
   static const Color _orange = Color(0xFFFF6600);
   static const Color _inputBg = Color(0xFF1E2227);
   final String baseUrl =
-      "https://huntington-ware-seasons-first.trycloudflare.com";
+      "https://partners-vegetables-algebra-dryer.trycloudflare.com";
 
   // ── Step state ───────────────────────────────────────────────
   int _step = 0; // 0=Select Location, 1=Zone Details, 2=Alerts
@@ -95,12 +95,11 @@ class _AddZonePageState extends State<AddZonePage>
     }
     try {
       final response = await ApiService.get(
-            Uri.parse(
-              "https://nominatim.openstreetmap.org/search?format=json&q=${Uri.encodeComponent(query)}&countrycodes=in&viewbox=76.0,8.0,80.5,14.0&limit=8",
-            ),
-            headers: {"User-Agent": "ScanID_App"},
-          )
-          .timeout(const Duration(seconds: 5));
+        Uri.parse(
+          "https://nominatim.openstreetmap.org/search?format=json&q=${Uri.encodeComponent(query)}&countrycodes=in&viewbox=76.0,8.0,80.5,14.0&limit=8",
+        ),
+        headers: {"User-Agent": "ScanID_App"},
+      ).timeout(const Duration(seconds: 5));
       if (response.statusCode == 200) {
         final List data = jsonDecode(response.body);
         setState(() {
@@ -219,12 +218,11 @@ class _AddZonePageState extends State<AddZonePage>
   Future<void> _reverseGeocode(LatLng pos) async {
     try {
       final response = await ApiService.get(
-            Uri.parse(
-              "https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.latitude}&lon=${pos.longitude}",
-            ),
-            headers: {"User-Agent": "ScanID_App"},
-          )
-          .timeout(const Duration(seconds: 5));
+        Uri.parse(
+          "https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.latitude}&lon=${pos.longitude}",
+        ),
+        headers: {"User-Agent": "ScanID_App"},
+      ).timeout(const Duration(seconds: 5));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final String displayName = data["display_name"] ?? "";
@@ -288,7 +286,11 @@ class _AddZonePageState extends State<AddZonePage>
 
       http.Response response;
       if (widget.editZone != null) {
-        response = await ApiService.put(Uri.parse(url), headers: headers, body: body);
+        response = await ApiService.put(
+          Uri.parse(url),
+          headers: headers,
+          body: body,
+        );
       } else {
         response = await ApiService.post(
           Uri.parse(url),

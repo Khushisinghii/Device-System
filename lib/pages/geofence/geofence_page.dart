@@ -83,7 +83,7 @@ class _GeofencePageState extends State<GeofencePage> {
   static const Color _orange = Color(0xFFFF6600);
 
   final String _baseUrl =
-      "https://huntington-ware-seasons-first.trycloudflare.com";
+      "https://partners-vegetables-algebra-dryer.trycloudflare.com";
   List<GeofenceZone> _zones = [];
   bool _loading = true;
   int? _userId;
@@ -104,7 +104,9 @@ class _GeofencePageState extends State<GeofencePage> {
     if (_userId == null) return;
     setState(() => _loading = true);
     try {
-      final res = await ApiService.get(Uri.parse("$_baseUrl/geofences/$_userId"));
+      final res = await ApiService.get(
+        Uri.parse("$_baseUrl/geofences/$_userId"),
+      );
       if (res.statusCode == 200) {
         final json = jsonDecode(res.body);
         if (json["status"] == true) {
