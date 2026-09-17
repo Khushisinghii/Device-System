@@ -19,7 +19,7 @@ class _DeviceInfoPageState extends State<DeviceInfoPage> {
   static const Color _orange = Color(0xFFFF6600);
 
   final String baseUrl =
-      "https://partners-vegetables-algebra-dryer.trycloudflare.com";
+      "https://galleries-symphony-euros-addressing.trycloudflare.com";
   Map<String, dynamic> data = {};
   bool loading = true;
   Timer? _refreshTimer;

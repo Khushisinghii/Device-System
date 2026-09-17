@@ -10,7 +10,7 @@ import '../../pages/history/history_page.dart';
 
 // --- CONFIGURATION ---
 const String BASE_URL =
-    "https://partners-vegetables-algebra-dryer.trycloudflare.com";
+    "https://galleries-symphony-euros-addressing.trycloudflare.com";
 
 class User {
   final int id;

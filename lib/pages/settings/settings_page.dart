@@ -26,7 +26,7 @@ class _SettingsPageState extends State<SettingsPage> {
   static const Color _orange = Color(0xFFFF6600);
 
   final String baseUrl =
-      "https://partners-vegetables-algebra-dryer.trycloudflare.com";
+      "https://galleries-symphony-euros-addressing.trycloudflare.com";
 
   bool _notifyLowBattery = true;
   bool _notifyFullBattery = true;

@@ -145,7 +145,7 @@ class AppRouter {
 
 class ApiRoutes {
   static const String baseUrl =
-      'https://partners-vegetables-algebra-dryer.trycloudflare.com';
+      'https://galleries-symphony-euros-addressing.trycloudflare.com';
 
   // -- AUTH --
   static const String login = '$baseUrl/login';

@@ -32,7 +32,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
   static const Color _orange = Color(0xFFFF6600);
 
   final String baseUrl =
-      "https://partners-vegetables-algebra-dryer.trycloudflare.com";
+      "https://galleries-symphony-euros-addressing.trycloudflare.com";
 
   @override
   void initState() {
