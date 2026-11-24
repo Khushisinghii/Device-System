@@ -27,7 +27,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   final Color panelBg = const Color(0xF2FFFFFF);
 
   final String baseUrl =
-      "https://galleries-symphony-euros-addressing.trycloudflare.com";
+      "https://ireland-calculations-chair-unfortunately.trycloudflare.com";
 
   // --- Map state ---
   GoogleMapController? mapController;
@@ -103,118 +103,132 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
         Uri.parse("$baseUrl/user_dashboard/${widget.userId}"),
       ).timeout(const Duration(seconds: 10));
 
-      if (response.statusCode == 200) {
-        final json = jsonDecode(response.body);
+      debugPrint("USER STATUS : ${response.statusCode}");
+      if (response.statusCode != 200) {
+        debugPrint(response.body);
+        if (data.isEmpty && mounted) {
+          setState(() {
+            loading = false;
+            hasError = true;
+          });
+        }
+        return;
+      }
 
-        if (json["status"] == true && json["data"] != null) {
-          final latVal = double.tryParse(
-            json["data"]["latitude"]?.toString() ?? "",
-          );
-          final lngVal = double.tryParse(
-            json["data"]["longitude"]?.toString() ?? "",
-          );
+      final json = jsonDecode(response.body);
 
-          if (latVal != null && lngVal != null) {
-            final newPosition = LatLng(latVal, lngVal);
-            if (!mounted) return;
+      if (json["status"] == true && json["data"] != null) {
+        final latVal = double.tryParse(
+          json["data"]["latitude"]?.toString() ?? "",
+        );
+        final lngVal = double.tryParse(
+          json["data"]["longitude"]?.toString() ?? "",
+        );
 
-            // Calculate bearing between previous and current position
-            if (_previousPosition != null) {
-              _currentBearing = _calculateBearing(
-                _previousPosition!,
-                newPosition,
-              );
-              final dist = _calculateDistance(_previousPosition!, newPosition);
-              totalDistanceMeters += dist;
+        if (latVal != null && lngVal != null) {
+          final newPosition = LatLng(latVal, lngVal);
+          if (!mounted) return;
+
+          // Calculate bearing between previous and current position
+          if (_previousPosition != null) {
+            _currentBearing = _calculateBearing(
+              _previousPosition!,
+              newPosition,
+            );
+            final dist = _calculateDistance(_previousPosition!, newPosition);
+            totalDistanceMeters += dist;
+          }
+
+          final currentSpeed =
+              double.tryParse(json["data"]["speed"]?.toString() ?? "0") ?? 0;
+          speedHistory.add(currentSpeed);
+
+          // GPS Drift & Teleportation Spike Filter
+          LatLng finalPosition = newPosition;
+          if (_previousPosition != null) {
+            final double dist = _calculateDistance(_previousPosition!, newPosition);
+
+            // 1. Stationary drift suppression: lock position if vehicle is stopped (speed <= 2.5 km/h)
+            // and position drift is within 30 meters
+            if (currentSpeed <= 2.5 && dist < 30.0) {
+              finalPosition = _previousPosition!;
+            }
+            // 2. Teleportation spike filter: reject sudden impossible jumps > 1500 meters
+            else if (dist > 1500.0 && currentSpeed < 150.0) {
+              finalPosition = _previousPosition!;
+            }
+          }
+
+          setState(() {
+            data = json["data"];
+            loading = false;
+            hasError = false;
+
+            // Add to route if position actually changed
+            if (routePoints.isEmpty ||
+                _positionChanged(routePoints.last, finalPosition)) {
+              routePoints.add(finalPosition);
             }
 
-            final currentSpeed =
-                double.tryParse(json["data"]["speed"]?.toString() ?? "0") ?? 0;
-            speedHistory.add(currentSpeed);
+            _previousPosition = finalPosition;
 
-            // GPS Drift filter: Lock marker position when stationary to prevent building drift
-            LatLng finalPosition = newPosition;
-            if (_previousPosition != null && currentSpeed <= 1.0) {
-              final driftDist = _calculateDistance(
-                _previousPosition!,
-                newPosition,
-              );
-              if (driftDist < 10.0) {
-                finalPosition = _previousPosition!;
-              }
-            }
+            markers = {
+              Marker(
+                markerId: const MarkerId("tracker"),
+                position: finalPosition,
+                rotation: _currentBearing,
+                anchor: const Offset(0.5, 0.5),
+                icon:
+                    trackerIcon ??
+                    BitmapDescriptor.defaultMarkerWithHue(
+                      BitmapDescriptor.hueOrange,
+                    ),
+                infoWindow: InfoWindow(
+                  title: data["name"] ?? "Tracker",
+                  snippet: "Speed: ${currentSpeed.toStringAsFixed(1)} km/h",
+                ),
+              ),
+              // Geofence center marker
+              if (_geofenceActive && _geofenceCenter != null)
+                Marker(
+                  markerId: const MarkerId("geofence_center"),
+                  position: _geofenceCenter!,
+                  icon: BitmapDescriptor.defaultMarkerWithHue(
+                    BitmapDescriptor.hueAzure,
+                  ),
+                  infoWindow: InfoWindow(
+                    title: "📍 Geofence Center",
+                    snippet:
+                        "Radius: ${_geofenceRadiusKm.toStringAsFixed(0)} km",
+                  ),
+                  anchor: const Offset(0.5, 1.0),
+                ),
+            };
+          });
 
+          // ---- GEOFENCE CHECK ----
+          if (_geofenceActive && _geofenceCenter != null) {
+            _checkGeofence(newPosition);
+          }
+
+          // Smooth camera follow
+          if (followMode && mapController != null) {
+            _isProgrammaticMovement = true;
+            mapController!.animateCamera(
+              CameraUpdate.newCameraPosition(
+                CameraPosition(target: newPosition, zoom: 16),
+              ),
+            );
+          }
+          return;
+        } else {
+          // Lat/Lng is null but database data is present (could be offline tracker with last values null/old)
+          if (data.isEmpty && json["data"] != null) {
             setState(() {
               data = json["data"];
               loading = false;
               hasError = false;
-
-              // Add to route if position actually changed
-              if (routePoints.isEmpty ||
-                  _positionChanged(routePoints.last, finalPosition)) {
-                routePoints.add(finalPosition);
-              }
-
-              _previousPosition = finalPosition;
-
-              markers = {
-                Marker(
-                  markerId: const MarkerId("tracker"),
-                  position: finalPosition,
-                  rotation: _currentBearing,
-                  anchor: const Offset(0.5, 0.5),
-                  icon:
-                      trackerIcon ??
-                      BitmapDescriptor.defaultMarkerWithHue(
-                        BitmapDescriptor.hueOrange,
-                      ),
-                  infoWindow: InfoWindow(
-                    title: data["name"] ?? "Tracker",
-                    snippet: "Speed: ${currentSpeed.toStringAsFixed(1)} km/h",
-                  ),
-                ),
-                // Geofence center marker
-                if (_geofenceActive && _geofenceCenter != null)
-                  Marker(
-                    markerId: const MarkerId("geofence_center"),
-                    position: _geofenceCenter!,
-                    icon: BitmapDescriptor.defaultMarkerWithHue(
-                      BitmapDescriptor.hueAzure,
-                    ),
-                    infoWindow: InfoWindow(
-                      title: "📍 Geofence Center",
-                      snippet:
-                          "Radius: ${_geofenceRadiusKm.toStringAsFixed(0)} km",
-                    ),
-                    anchor: const Offset(0.5, 1.0),
-                  ),
-              };
             });
-
-            // ---- GEOFENCE CHECK ----
-            if (_geofenceActive && _geofenceCenter != null) {
-              _checkGeofence(newPosition);
-            }
-
-            // Smooth camera follow
-            if (followMode && mapController != null) {
-              _isProgrammaticMovement = true;
-              mapController!.animateCamera(
-                CameraUpdate.newCameraPosition(
-                  CameraPosition(target: newPosition, zoom: 16),
-                ),
-              );
-            }
-            return;
-          } else {
-            // Lat/Lng is null but database data is present (could be offline tracker with last values null/old)
-            if (data.isEmpty && json["data"] != null) {
-              setState(() {
-                data = json["data"];
-                loading = false;
-                hasError = false;
-              });
-            }
           }
         }
       }
@@ -1603,16 +1617,61 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
     );
   }
 
+  DateTime? _parseLastUpdate(String? raw) {
+    if (raw == null || raw.trim().isEmpty) return null;
+    try {
+      final clean = raw.trim();
+      final parts = clean.split(" ");
+      if (parts.length >= 2) {
+        final dateParts = parts[0].split("-");
+        final timeParts = parts[1].split(":");
+        int day = int.parse(dateParts[0]);
+        int month = int.parse(dateParts[1]);
+        int year = int.parse(dateParts[2]);
+
+        int hour = int.parse(timeParts[0]);
+        int minute = int.parse(timeParts[1]);
+        int second = int.parse(timeParts[2]);
+
+        if (parts.length > 2) {
+          final amPm = parts[2].toUpperCase();
+          if (amPm == "PM" && hour < 12) hour += 12;
+          if (amPm == "AM" && hour == 12) hour = 0;
+        }
+        return DateTime(year, month, day, hour, minute, second);
+      }
+      return DateTime.tryParse(clean);
+    } catch (_) {
+      return null;
+    }
+  }
+
   // ============================================================
   //  TOP STATUS BAR
   // ============================================================
 
   Widget _buildTopBar() {
     final String name = data["name"] ?? "Tracker";
-    final String status = (data["status"] ?? "OFFLINE")
-        .toString()
-        .toUpperCase();
-    final bool isOnline = status == "ONLINE";
+    final String status = (data["status"] ?? "").toString().toUpperCase();
+
+    // Check valid coordinates
+    final lat = double.tryParse(data["latitude"]?.toString() ?? "") ?? 0.0;
+    final lng = double.tryParse(data["longitude"]?.toString() ?? "") ?? 0.0;
+    final bool hasCoordinates = (lat != 0.0 && lng != 0.0);
+
+    // Online only if coordinates exist and received within 1 minute (60 seconds)
+    bool isOnline = false;
+    if (hasCoordinates) {
+      final lastUp = _parseLastUpdate(data["last_update"]?.toString());
+      if (lastUp != null) {
+        final ageSec = DateTime.now().difference(lastUp).inSeconds.abs();
+        if (ageSec <= 60 && status != "OFFLINE") {
+          isOnline = true;
+        }
+      } else if (data["is_online"] == true || status == "ONLINE" || status == "VALID") {
+        isOnline = true;
+      }
+    }
 
     return Positioned(
       top: MediaQuery.of(context).padding.top + 8,

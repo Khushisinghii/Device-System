@@ -28,7 +28,7 @@ class _ProfilePageState extends State<ProfilePage> {
   static const Color _orange = Color(0xFFFF6600);
 
   final String baseUrl =
-      "https://galleries-symphony-euros-addressing.trycloudflare.com";
+      "https://ireland-calculations-chair-unfortunately.trycloudflare.com";
   Map<String, dynamic>? data;
   bool loading = true;
   Timer? _refreshTimer;
@@ -74,6 +74,7 @@ class _ProfilePageState extends State<ProfilePage> {
       setState(() => loading = false);
     }
   }
+
 
   Future<void> _makePhoneCall(String phoneNumber) async {
     await FlutterPhoneDirectCaller.callNumber(phoneNumber);
@@ -228,16 +229,10 @@ class _ProfilePageState extends State<ProfilePage> {
                       child: Column(
                         children: [
                           _row(
-                            Icons.phone_android_rounded,
-                            "Phone",
-                            data?["ph_no"] ?? "-",
-                            isFirst: true,
-                          ),
-                          _divider(),
-                          _row(
                             Icons.fingerprint_rounded,
                             "IMEI",
                             data?["imei"] ?? "-",
+                            isFirst: true,
                           ),
                           _divider(),
                           _row(
@@ -324,13 +319,16 @@ class _ProfilePageState extends State<ProfilePage> {
                               icon: Icons.sos_rounded,
                               label: "SOS",
                               iconColor: Colors.redAccent,
-                              onTap: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                      SosPage(userId: widget.userId),
-                                ),
-                              ),
+                              onTap: () async {
+                                await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        SosPage(userId: widget.userId),
+                                  ),
+                                );
+                                _loadProfile(isFirst: false);
+                              },
                             ),
                           ),
                         ],

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import '../../core/services/api_service.dart';
 
 class ForgotPasswordPage extends StatefulWidget {
@@ -25,7 +26,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
 
   // Update this to your server IP
   final String baseUrl =
-      "https://galleries-symphony-euros-addressing.trycloudflare.com";
+      "https://ireland-calculations-chair-unfortunately.trycloudflare.com";
 
   @override
   Widget build(BuildContext context) {
@@ -222,7 +223,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     setState(() => isLoading = true);
 
     try {
-      final response = await ApiService.post(
+      final response = await http.post(
         Uri.parse("$baseUrl/forgot_password"),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({

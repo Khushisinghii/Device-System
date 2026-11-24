@@ -21,7 +21,7 @@ class _HistoryPageState extends State<HistoryPage> {
   static const Color _orange = Color(0xFFFF6600);
 
   final String baseUrl =
-      "https://galleries-symphony-euros-addressing.trycloudflare.com";
+      "https://ireland-calculations-chair-unfortunately.trycloudflare.com";
 
   DateTime selectedDate = DateTime.now();
   bool loading = true;
@@ -35,7 +35,8 @@ class _HistoryPageState extends State<HistoryPage> {
 
   List<dynamic> _fullHistory = [];
   List<Map<String, dynamic>> _fullDetectedStops = [];
-  List<LatLng> _fullSnappedRoute = [];
+  List<Map<String, dynamic>> _backendRouteSegments =
+      []; // [{points: List<LatLng>, travel_count: int, ...}]
   RangeValues _timeRange = const RangeValues(0, 24);
   bool _showFilters = true;
   bool _isMapView = true; // Added state for view toggle
@@ -106,9 +107,29 @@ class _HistoryPageState extends State<HistoryPage> {
     return R * 2 * atan2(sqrt(a), sqrt(1 - a));
   }
 
+  bool _isStationaryDay(List<dynamic> pts) {
+    if (pts.isEmpty) return false;
+    double minLat = 90.0, maxLat = -90.0, minLng = 180.0, maxLng = -180.0;
+    int validCount = 0;
+    for (final pt in pts) {
+      final lat = double.tryParse(pt["latitude"]?.toString() ?? "") ?? 0.0;
+      final lng = double.tryParse(pt["longitude"]?.toString() ?? "") ?? 0.0;
+      if (lat == 0.0 || lng == 0.0) continue;
+      validCount++;
+      if (lat < minLat) minLat = lat;
+      if (lat > maxLat) maxLat = lat;
+      if (lng < minLng) minLng = lng;
+      if (lng > maxLng) maxLng = lng;
+    }
+    if (validCount < 2) return true;
+    final maxSpanMeters = _haversine(minLat, minLng, maxLat, maxLng);
+    // If all points across the entire day/filter are within 350 meters, the tracker stayed in one location
+    return maxSpanMeters < 350.0;
+  }
+
   List<Map<String, dynamic>> _detectStops(List<dynamic> pts) {
-    final List<Map<String, dynamic>> list = [];
-    if (pts.isEmpty) return list;
+    final List<Map<String, dynamic>> rawList = [];
+    if (pts.isEmpty) return rawList;
 
     int i = 0;
     while (i < pts.length) {
@@ -145,7 +166,8 @@ class _HistoryPageState extends State<HistoryPage> {
         final speed =
             double.tryParse(nextPt["speed"]?.toString() ?? "0") ?? 0.0;
 
-        if (dist < 50.0 && speed <= 5.0) {
+        // Allow up to 100m drift while speed <= 5 km/h for stationary stay detection
+        if (dist < 100.0 && speed <= 5.0) {
           lastTime = nextTime;
           if (nextPt["address"] != null &&
               nextPt["address"].toString().isNotEmpty) {
@@ -182,7 +204,7 @@ class _HistoryPageState extends State<HistoryPage> {
           }
         }
 
-        list.add({
+        rawList.add({
           "latitude": startLat,
           "longitude": startLng,
           "place_name": placeName,
@@ -198,49 +220,133 @@ class _HistoryPageState extends State<HistoryPage> {
         i++;
       }
     }
-    return list;
+
+    if (rawList.isEmpty) return [];
+
+    // Stop Deduplication & Merging:
+    // If consecutive or nearby stops are within 150m of each other,
+    // merge them into a single stop so pins do not stack on top of each other.
+    final List<Map<String, dynamic>> mergedStops = [];
+    for (var stop in rawList) {
+      if (mergedStops.isEmpty) {
+        mergedStops.add(Map<String, dynamic>.from(stop));
+        continue;
+      }
+
+      final prev = mergedStops.last;
+      final dist = _haversine(
+        prev["latitude"] as double,
+        prev["longitude"] as double,
+        stop["latitude"] as double,
+        stop["longitude"] as double,
+      );
+
+      if (dist < 150.0) {
+        final prevDur = (prev["duration"] as int?) ?? 0;
+        final currDur = (stop["duration"] as int?) ?? 0;
+        prev["duration"] = prevDur + currDur;
+        prev["end_time"] = stop["end_time"];
+        if ((prev["address"] == null || prev["address"].toString().isEmpty) &&
+            stop["address"] != null) {
+          prev["address"] = stop["address"];
+        }
+      } else {
+        mergedStops.add(Map<String, dynamic>.from(stop));
+      }
+    }
+
+    return mergedStops;
   }
 
   List<dynamic> _cleanGpsData(List<dynamic> rawList) {
     if (rawList.isEmpty) return [];
 
-    final List<dynamic> clean = [];
-
-    // Add first point if valid
-    var first = rawList.first;
-    var firstLat = double.tryParse(first["latitude"]?.toString() ?? "") ?? 0.0;
-    var firstLng = double.tryParse(first["longitude"]?.toString() ?? "") ?? 0.0;
-    if (firstLat != 0.0 && firstLng != 0.0) {
-      clean.add(first);
+    // Tier 1: Reject zero, out-of-bound coordinates and invalid GPS fixes
+    final List<dynamic> validList = [];
+    for (var pt in rawList) {
+      final lat = double.tryParse(pt["latitude"]?.toString() ?? "") ?? 0.0;
+      final lng = double.tryParse(pt["longitude"]?.toString() ?? "") ?? 0.0;
+      final status = (pt["status"] ?? "").toString().toUpperCase();
+      if (lat == 0.0 || lng == 0.0 || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+        continue;
+      }
+      if (status == "INVALID") {
+        continue;
+      }
+      validList.add(pt);
     }
 
-    for (int idx = 1; idx < rawList.length; idx++) {
-      final pt = rawList[idx];
+    if (validList.isEmpty) return [];
+
+    // Tier 2: Single-Point Outlier Spike Filter (Teleportation rejection)
+    // If a point suddenly jumps > 300m away, but the next point returns close to previous,
+    // it is a transient GPS coordinate glitch and should be discarded.
+    final List<dynamic> noSpikes = [];
+    noSpikes.add(validList.first);
+
+    for (int i = 1; i < validList.length; i++) {
+      final prev = noSpikes.last;
+      final curr = validList[i];
+
+      final prevLat = double.tryParse(prev["latitude"]?.toString() ?? "") ?? 0.0;
+      final prevLng = double.tryParse(prev["longitude"]?.toString() ?? "") ?? 0.0;
+      final currLat = double.tryParse(curr["latitude"]?.toString() ?? "") ?? 0.0;
+      final currLng = double.tryParse(curr["longitude"]?.toString() ?? "") ?? 0.0;
+
+      final distFromPrev = _haversine(prevLat, prevLng, currLat, currLng);
+
+      if (i + 1 < validList.length && distFromPrev > 300.0) {
+        final next = validList[i + 1];
+        final nextLat = double.tryParse(next["latitude"]?.toString() ?? "") ?? 0.0;
+        final nextLng = double.tryParse(next["longitude"]?.toString() ?? "") ?? 0.0;
+        final distNextFromPrev = _haversine(prevLat, prevLng, nextLat, nextLng);
+
+        // Next point is back near previous location (< 200m) -> curr is a jump spike
+        if (distNextFromPrev < 200.0) {
+          continue;
+        }
+      }
+
+      noSpikes.add(curr);
+    }
+
+    // Tier 3: Stationary Drift Suppression (No spiderweb lines when parked)
+    final List<dynamic> clean = [];
+    clean.add(noSpikes.first);
+
+    dynamic anchorPt = noSpikes.first;
+    double anchorLat = double.tryParse(anchorPt["latitude"]?.toString() ?? "") ?? 0.0;
+    double anchorLng = double.tryParse(anchorPt["longitude"]?.toString() ?? "") ?? 0.0;
+
+    for (int idx = 1; idx < noSpikes.length; idx++) {
+      final pt = noSpikes[idx];
       final lat = double.tryParse(pt["latitude"]?.toString() ?? "") ?? 0.0;
       final lng = double.tryParse(pt["longitude"]?.toString() ?? "") ?? 0.0;
       final speed = double.tryParse(pt["speed"]?.toString() ?? "0") ?? 0.0;
 
-      if (lat == 0.0 || lng == 0.0) continue;
+      final distFromLast = _haversine(
+        double.tryParse(clean.last["latitude"]?.toString() ?? "") ?? 0.0,
+        double.tryParse(clean.last["longitude"]?.toString() ?? "") ?? 0.0,
+        lat,
+        lng,
+      );
 
-      // Get previous clean point
-      final prev = clean.last;
-      final prevLat =
-          double.tryParse(prev["latitude"]?.toString() ?? "") ?? 0.0;
-      final prevLng =
-          double.tryParse(prev["longitude"]?.toString() ?? "") ?? 0.0;
-
-      final dist = _haversine(prevLat, prevLng, lat, lng);
-
-      // 1. Remove duplicate coordinates (nearly identical)
-      if (dist < 1.0) {
+      // Skip exact duplicate readings
+      if (distFromLast < 2.0) {
         continue;
       }
 
-      // 2. Distance filter: if distance < 10m and speed < 2 km/h, ignore (removes drift stops)
-      if (dist < 10.0 && speed < 2.0) {
+      // If vehicle/tracker is stationary (speed <= 2.5 km/h) and within 30m of anchor,
+      // it is indoor/parking GPS drift. Suppress it to keep map clean!
+      final distFromAnchor = _haversine(anchorLat, anchorLng, lat, lng);
+      if (speed <= 2.5 && distFromAnchor < 30.0) {
         continue;
       }
 
+      // Movement detected: advance anchor and add to clean route
+      anchorPt = pt;
+      anchorLat = lat;
+      anchorLng = lng;
       clean.add(pt);
     }
     return clean;
@@ -259,7 +365,7 @@ class _HistoryPageState extends State<HistoryPage> {
       final responses = await Future.wait([
         ApiService.get(
           Uri.parse("$baseUrl/location_history/${widget.userId}?date=$dateStr"),
-        ).timeout(const Duration(seconds: 15)),
+        ).timeout(const Duration(seconds: 60)),
         ApiService.get(
           Uri.parse("$baseUrl/geofences/${widget.userId}"),
         ).timeout(const Duration(seconds: 15)),
@@ -275,14 +381,30 @@ class _HistoryPageState extends State<HistoryPage> {
         if (!mounted) return;
 
         final rawHist = json["history"] ?? [];
-        final rawMatchedRoute = json["matched_route"] ?? [];
+        final rawRouteSegments = json["route_segments"] ?? [];
 
-        List<LatLng> backendSnappedRoute = [];
-        for (var pt in rawMatchedRoute) {
-          final lat = double.tryParse(pt["latitude"]?.toString() ?? "") ?? 0.0;
-          final lng = double.tryParse(pt["longitude"]?.toString() ?? "") ?? 0.0;
-          if (lat != 0.0 && lng != 0.0) {
-            backendSnappedRoute.add(LatLng(lat, lng));
+        // Parse route_segments from backend (with travel_count metadata)
+        List<Map<String, dynamic>> parsedSegments = [];
+        for (var seg in rawRouteSegments) {
+          final points = seg["points"] ?? [];
+          List<LatLng> segLatLngs = [];
+          for (var pt in points) {
+            final lat =
+                double.tryParse(pt["latitude"]?.toString() ?? "") ?? 0.0;
+            final lng =
+                double.tryParse(pt["longitude"]?.toString() ?? "") ?? 0.0;
+            if (lat != 0.0 && lng != 0.0) {
+              segLatLngs.add(LatLng(lat, lng));
+            }
+          }
+          if (segLatLngs.isNotEmpty) {
+            parsedSegments.add({
+              "points": segLatLngs,
+              "travel_count": seg["travel_count"] ?? 1,
+              "distance_km": seg["distance_km"] ?? 0.0,
+              "first_time": seg["first_time"] ?? "",
+              "last_time": seg["last_time"] ?? "",
+            });
           }
         }
 
@@ -295,7 +417,7 @@ class _HistoryPageState extends State<HistoryPage> {
         setState(() {
           _fullHistory = cleanHist;
           _fullDetectedStops = detected;
-          _fullSnappedRoute = backendSnappedRoute;
+          _backendRouteSegments = parsedSegments;
           _timeRange = const RangeValues(0, 24);
           loading = false;
         });
@@ -357,6 +479,63 @@ class _HistoryPageState extends State<HistoryPage> {
       }
     }
 
+    final isStationary = _isStationaryDay(filteredHist);
+
+    // If tracker remained in the same place all day, consolidate into 1 clean stop
+    if (isStationary && filteredHist.isNotEmpty) {
+      final firstPt = filteredHist.first;
+      final lastPt = filteredHist.last;
+      final firstTime = _parseGpsDateTime(firstPt["gps_time"]);
+      final lastTime = _parseGpsDateTime(lastPt["gps_time"]);
+      int durMins = 0;
+      if (firstTime != null && lastTime != null) {
+        durMins = lastTime.difference(firstTime).inMinutes.abs();
+      }
+      if (durMins < 5) durMins = 5;
+
+      String placeName = "Stationary Location";
+      String addr = firstPt["address"] ?? lastPt["address"] ?? "";
+      for (var gf in userGeofences) {
+        final gfLat = double.tryParse(gf["latitude"]?.toString() ?? "") ?? 0.0;
+        final gfLng = double.tryParse(gf["longitude"]?.toString() ?? "") ?? 0.0;
+        final gfRad =
+            double.tryParse(gf["radius_meters"]?.toString() ?? "100") ?? 100.0;
+        final firstLat =
+            double.tryParse(firstPt["latitude"]?.toString() ?? "") ?? 0.0;
+        final firstLng =
+            double.tryParse(firstPt["longitude"]?.toString() ?? "") ?? 0.0;
+        if (_haversine(firstLat, firstLng, gfLat, gfLng) <= gfRad) {
+          placeName = gf["name"];
+          break;
+        }
+      }
+
+      if (placeName == "Stationary Location" && addr.isNotEmpty) {
+        final parts = addr.split(",");
+        if (parts.isNotEmpty && parts[0].trim().isNotEmpty) {
+          placeName = parts[0].trim();
+        }
+      }
+
+      final firstLat =
+          double.tryParse(firstPt["latitude"]?.toString() ?? "") ?? 0.0;
+      final firstLng =
+          double.tryParse(firstPt["longitude"]?.toString() ?? "") ?? 0.0;
+
+      filteredStops.clear();
+      filteredStops.add({
+        "latitude": firstLat,
+        "longitude": firstLng,
+        "place_name": placeName,
+        "address": addr.isNotEmpty
+            ? addr
+            : "${firstLat.toStringAsFixed(6)}, ${firstLng.toStringAsFixed(6)}",
+        "start_time": firstPt["gps_time"],
+        "end_time": lastPt["gps_time"],
+        "duration": durMins,
+      });
+    }
+
     setState(() {
       history = filteredHist;
       detectedStops = filteredStops;
@@ -369,21 +548,17 @@ class _HistoryPageState extends State<HistoryPage> {
         endData = null;
       }
 
-      if (startHour == 0.0 && endHour == 24.0 && _fullSnappedRoute.isNotEmpty) {
-        _snappedSegments = [_fullSnappedRoute];
+      if (isStationary) {
+        totalDistanceMeters = 0.0;
       } else {
-        _snappedSegments = [];
+        // Always use the real, complete GPS points route so all path details are shown
+        final rawSegments = _getCleanRouteSegments();
+        final List<LatLng> cleanRoute = [];
+        for (final seg in rawSegments) {
+          cleanRoute.addAll(seg);
+        }
+        totalDistanceMeters = _calcTotalDistance(cleanRoute);
       }
-    });
-
-    final rawSegments = _getCleanRouteSegments();
-    final List<LatLng> cleanRoute = [];
-    for (final seg in rawSegments) {
-      cleanRoute.addAll(seg);
-    }
-
-    setState(() {
-      totalDistanceMeters = _calcTotalDistance(cleanRoute);
     });
 
     _buildMapElements();
@@ -628,6 +803,9 @@ class _HistoryPageState extends State<HistoryPage> {
   }
 
   List<List<LatLng>> _getCleanRouteSegments() {
+    if (_isStationaryDay(history)) {
+      return [];
+    }
     final List<List<LatLng>> segments = [];
     List<LatLng> currentSegment = [];
     LatLng? lastValid;
@@ -638,7 +816,7 @@ class _HistoryPageState extends State<HistoryPage> {
       final lng = double.tryParse(pt["longitude"]?.toString() ?? "") ?? 0.0;
       final time = _parseGpsDateTime(pt["gps_time"]);
 
-      if (lat == 0.0 || lng == 0.0 || lat == 11.017565 || lng == 76.955836) {
+      if (lat == 0.0 || lng == 0.0) {
         continue;
       }
 
@@ -649,15 +827,16 @@ class _HistoryPageState extends State<HistoryPage> {
           lat,
           lng,
         );
-        final seconds = time.difference(lastTime).inSeconds;
+        final seconds = time.difference(lastTime).inSeconds.abs();
         if (seconds > 0) {
           final speedKmH = (dist / seconds) * 3.6;
-          if (speedKmH > 150.0 && dist > 500.0) {
+          if (speedKmH > 160.0 && dist > 400.0) {
             continue;
           }
         }
 
-        if (seconds > 600 || dist > 500.0) {
+        // Only split into a new path segment if inactive > 15 minutes or jump > 2.5 km
+        if (seconds > 900 || dist > 2500.0) {
           if (currentSegment.isNotEmpty) {
             segments.add(currentSegment);
             currentSegment = [];
@@ -680,26 +859,78 @@ class _HistoryPageState extends State<HistoryPage> {
   void _buildMapElements() {
     if (history.isEmpty) return;
 
-    final segments = _snappedSegments.isNotEmpty
-        ? _snappedSegments
-        : _getCleanRouteSegments();
+    final isStationary = _isStationaryDay(history);
+    final segments = _getCleanRouteSegments();
 
-    if (segments.isNotEmpty) {
-      setState(() {
-        _polylines.clear();
-        _markers.clear();
+    setState(() {
+      _polylines.clear();
+      _markers.clear();
 
+      if (isStationary) {
+        // Vehicle/tracker was stationary all day in one location
+        // Show ONE single clean Parked marker, NO messy spiderwebs!
+        final pt = history.first;
+        final lat = double.tryParse(pt["latitude"]?.toString() ?? "") ?? 0.0;
+        final lng = double.tryParse(pt["longitude"]?.toString() ?? "") ?? 0.0;
+
+        if (lat != 0.0 && lng != 0.0) {
+          final stop = detectedStops.isNotEmpty ? detectedStops.first : null;
+          final duration = stop != null ? (stop["duration"] ?? 0) : 0;
+          final place = stop != null
+              ? (stop["place_name"] ?? "Parked Location")
+              : "Parked Location";
+          final addr =
+              stop != null ? (stop["address"] ?? "") : (pt["address"] ?? "");
+
+          _markers.add(
+            Marker(
+              markerId: const MarkerId("parked_single"),
+              position: LatLng(lat, lng),
+              icon: BitmapDescriptor.defaultMarkerWithHue(
+                BitmapDescriptor.hueAzure,
+              ),
+              infoWindow: InfoWindow(
+                title: "🅿️ $place (${_formatStayed(duration)})",
+                snippet: addr,
+              ),
+            ),
+          );
+        }
+      } else {
+        // Draw one Polyline per segment with width based on travel_count
         for (int i = 0; i < segments.length; i++) {
+          int travelCount = 1;
+          double distKm = 0;
+          String firstTime = "";
+          String lastTime = "";
+
+          if (i < _backendRouteSegments.length) {
+            travelCount = _backendRouteSegments[i]["travel_count"] ?? 1;
+            distKm = (_backendRouteSegments[i]["distance_km"] ?? 0).toDouble();
+            firstTime = _backendRouteSegments[i]["first_time"] ?? "";
+            lastTime = _backendRouteSegments[i]["last_time"] ?? "";
+          }
+
+          int polyWidth = travelCount >= 4 ? 7 : (travelCount >= 2 ? 6 : 5);
+
           _polylines.add(
             Polyline(
               polylineId: PolylineId("route_$i"),
               points: segments[i],
               color: _orange,
-              width: 5,
+              width: polyWidth,
+              jointType: JointType.round,
+              startCap: Cap.roundCap,
+              endCap: Cap.roundCap,
+              consumeTapEvents: true,
+              onTap: () {
+                _showSegmentInfo(travelCount, distKm, firstTime, lastTime);
+              },
             ),
           );
         }
 
+        // Start marker = GREEN
         final startLat =
             double.tryParse(startData?["latitude"]?.toString() ?? "") ?? 0.0;
         final startLng =
@@ -713,13 +944,15 @@ class _HistoryPageState extends State<HistoryPage> {
                 BitmapDescriptor.hueGreen,
               ),
               infoWindow: InfoWindow(
-                title: "Start Point",
-                snippet: startData?["address"] ?? "",
+                title: "START",
+                snippet:
+                    "Time: ${_parseTime(startData?["gps_time"])}\n${startData?["address"] ?? ""}",
               ),
             ),
           );
         }
 
+        // End marker = RED
         final endLat =
             double.tryParse(endData?["latitude"]?.toString() ?? "") ?? 0.0;
         final endLng =
@@ -733,17 +966,20 @@ class _HistoryPageState extends State<HistoryPage> {
                 BitmapDescriptor.hueRed,
               ),
               infoWindow: InfoWindow(
-                title: "End Point",
-                snippet: endData?["address"] ?? "",
+                title: "END",
+                snippet:
+                    "Time: ${_parseTime(endData?["gps_time"])}\n${endData?["address"] ?? ""}",
               ),
             ),
           );
         }
 
+        // Stop markers = BLUE (clean deduplicated stops)
         for (int i = 0; i < detectedStops.length; i++) {
           final stop = detectedStops[i];
           final stopLat = stop["latitude"] as double;
           final stopLng = stop["longitude"] as double;
+          final duration = stop["duration"] ?? stop["duration_minutes"] ?? 0;
           _markers.add(
             Marker(
               markerId: MarkerId("stop_$i"),
@@ -752,54 +988,173 @@ class _HistoryPageState extends State<HistoryPage> {
                 BitmapDescriptor.hueBlue,
               ),
               infoWindow: InfoWindow(
-                title: "${stop["place_name"]} (${stop["duration"]} mins)",
-                snippet: stop["address"],
+                title: "STOP (${_formatStayed(duration)})",
+                snippet:
+                    "${stop["place_name"] ?? "Stop"}\n${stop["address"] ?? ""}",
               ),
             ),
           );
         }
+      }
 
-        // Add geofences as markers
-        for (int i = 0; i < userGeofences.length; i++) {
-          final gf = userGeofences[i];
-          final lat = double.tryParse(gf["latitude"]?.toString() ?? "") ?? 0.0;
-          final lng = double.tryParse(gf["longitude"]?.toString() ?? "") ?? 0.0;
-          final name = gf["name"]?.toString() ?? "Safe Zone";
-          final colorHex = gf["color"]?.toString() ?? "#FF6600";
-          final radius =
-              double.tryParse(gf["radius_meters"]?.toString() ?? "100") ??
-              100.0;
-          final String gfId = gf["id"]?.toString() ?? "";
-          final customIcon = _geofenceMarkerIcons[gfId];
+      // Add geofences as markers
+      for (int i = 0; i < userGeofences.length; i++) {
+        final gf = userGeofences[i];
+        final lat = double.tryParse(gf["latitude"]?.toString() ?? "") ?? 0.0;
+        final lng = double.tryParse(gf["longitude"]?.toString() ?? "") ?? 0.0;
+        final name = gf["name"]?.toString() ?? "Safe Zone";
+        final colorHex = gf["color"]?.toString() ?? "#FF6600";
+        final radius =
+            double.tryParse(gf["radius_meters"]?.toString() ?? "100") ??
+            100.0;
+        final String gfId = gf["id"]?.toString() ?? "";
+        final customIcon = _geofenceMarkerIcons[gfId];
 
-          if (lat != 0.0 && lng != 0.0) {
-            _markers.add(
-              Marker(
-                markerId: MarkerId("geofence_$i"),
-                position: LatLng(lat, lng),
-                icon:
-                    customIcon ??
-                    BitmapDescriptor.defaultMarkerWithHue(
-                      _getMarkerHue(colorHex),
-                    ),
-                infoWindow: InfoWindow(
-                  title: name,
-                  snippet: "Radius: ${radius.toStringAsFixed(0)} m",
+        if (lat != 0.0 && lng != 0.0) {
+          _markers.add(
+            Marker(
+              markerId: MarkerId("geofence_$i"),
+              position: LatLng(lat, lng),
+              icon:
+                  customIcon ??
+                  BitmapDescriptor.defaultMarkerWithHue(
+                    _getMarkerHue(colorHex),
+                  ),
+              infoWindow: InfoWindow(
+                title: name,
+                snippet: "Radius: ${radius.toStringAsFixed(0)} m",
+              ),
+            ),
+          );
+        }
+      }
+    });
+
+    // Auto-fit camera
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (isStationary) {
+        final pt = history.first;
+        final lat = double.tryParse(pt["latitude"]?.toString() ?? "") ?? 0.0;
+        final lng = double.tryParse(pt["longitude"]?.toString() ?? "") ?? 0.0;
+        if (lat != 0.0 && lng != 0.0) {
+          _mapController?.animateCamera(
+            CameraUpdate.newCameraPosition(
+              CameraPosition(target: LatLng(lat, lng), zoom: 16),
+            ),
+          );
+        }
+      } else {
+        _fitCameraToBounds(segments);
+      }
+    });
+  }
+
+  void _showSegmentInfo(
+    int travelCount,
+    double distKm,
+    String firstTime,
+    String lastTime,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: _card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade600,
+                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
-            );
-          }
-        }
-      });
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              "🛣️  Travelled Road",
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            _segInfoRow(
+              "Travelled",
+              "$travelCount time${travelCount > 1 ? 's' : ''}",
+            ),
+            if (firstTime.isNotEmpty) _segInfoRow("First", firstTime),
+            if (lastTime.isNotEmpty) _segInfoRow("Last", lastTime),
+            if (distKm > 0)
+              _segInfoRow("Distance", "${distKm.toStringAsFixed(1)} km"),
+          ],
+        ),
+      ),
+    );
+  }
 
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _mapController?.animateCamera(
-          CameraUpdate.newCameraPosition(
-            CameraPosition(target: segments.first.first, zoom: 14),
+  Widget _segInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(color: Colors.grey.shade400, fontSize: 14),
           ),
-        );
-      });
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _fitCameraToBounds(List<List<LatLng>> segments) {
+    if (_mapController == null) return;
+
+    double minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
+    for (final seg in segments) {
+      for (final pt in seg) {
+        if (pt.latitude < minLat) minLat = pt.latitude;
+        if (pt.latitude > maxLat) maxLat = pt.latitude;
+        if (pt.longitude < minLng) minLng = pt.longitude;
+        if (pt.longitude > maxLng) maxLng = pt.longitude;
+      }
     }
+
+    if (minLat >= maxLat || minLng >= maxLng || (maxLat - minLat).abs() < 0.0005) {
+      // Single point or stationary area — smooth center zoom
+      _mapController?.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target: LatLng((minLat + maxLat) / 2, (minLng + maxLng) / 2),
+            zoom: 16,
+          ),
+        ),
+      );
+      return;
+    }
+
+    final bounds = LatLngBounds(
+      southwest: LatLng(minLat, minLng),
+      northeast: LatLng(maxLat, maxLng),
+    );
+    _mapController?.animateCamera(CameraUpdate.newLatLngBounds(bounds, 60));
   }
 
   double _calcTotalDistance(List<LatLng> coords) {
@@ -885,6 +1240,35 @@ class _HistoryPageState extends State<HistoryPage> {
   }
 
   List<_TimelineEvent> _buildTimeline() {
+    if (history.isEmpty) return [];
+
+    if (_isStationaryDay(history)) {
+      final stop = detectedStops.isNotEmpty ? detectedStops.first : null;
+      final dur = stop != null ? (stop["duration"] as int? ?? 0) : 0;
+      final place = stop != null
+          ? (stop["place_name"] as String? ?? "Stationary Location")
+          : "Stationary Location";
+      final addr = stop != null
+          ? (stop["address"] as String? ?? "")
+          : (history.first["address"] ?? "");
+      final startT = _parseTime(history.first["gps_time"]);
+      final endT = _parseTime(history.last["gps_time"]);
+
+      return [
+        _TimelineEvent(
+          time: startT != "-" && endT != "-" ? "$startT - $endT" : startT,
+          parsedTime:
+              _parseGpsDateTime(history.first["gps_time"]) ?? DateTime(1970),
+          label: "🅿️ Stationary All Day at $place",
+          sublabel:
+              "Vehicle stayed in the same location • Stayed: ${_formatStayed(dur)}" +
+              (addr.isNotEmpty ? "\n$addr" : ""),
+          color: Colors.blueAccent,
+          icon: Icons.local_parking_rounded,
+        ),
+      ];
+    }
+
     final List<_TimelineEvent> events = [];
 
     // 1. Day Started At (First GPS location)
@@ -1038,42 +1422,80 @@ class _HistoryPageState extends State<HistoryPage> {
       }
     }
 
-    // 3. Stops > 5 min outside marked locations (e.g. Reliance Smart, VOC Park)
-    for (int i = 0; i < detectedStops.length; i++) {
-      final stop = detectedStops[i];
-      final duration = stop["duration"] as int;
-      final place = stop["place_name"] as String;
-      final arrivalTime = _parseTime(stop["start_time"]);
-      final departureTime = _parseTime(stop["end_time"]);
+    // 3. Movement Trips between stops
+    final segments = _getCleanRouteSegments();
+    for (int i = 0; i < segments.length; i++) {
+      final seg = segments[i];
+      if (seg.length >= 2) {
+        final dist = _calcTotalDistance(seg);
+        if (dist >= 100.0) {
+          // Find matching points in history to get time and addresses
+          final firstLatLng = seg.first;
+          final lastLatLng = seg.last;
 
-      bool isInsideGeofence = false;
-      final stopLat = stop["latitude"] as double;
-      final stopLng = stop["longitude"] as double;
-      for (var gf in userGeofences) {
-        final gfLat = double.tryParse(gf["latitude"]?.toString() ?? "") ?? 0.0;
-        final gfLng = double.tryParse(gf["longitude"]?.toString() ?? "") ?? 0.0;
-        final gfRad =
-            double.tryParse(gf["radius_meters"]?.toString() ?? "100") ?? 100.0;
-        if (_haversine(stopLat, stopLng, gfLat, gfLng) <= gfRad) {
-          isInsideGeofence = true;
-          break;
+          dynamic firstHistPt;
+          dynamic lastHistPt;
+
+          for (var pt in history) {
+            final lat = double.tryParse(pt["latitude"]?.toString() ?? "") ?? 0.0;
+            final lng = double.tryParse(pt["longitude"]?.toString() ?? "") ?? 0.0;
+            if (firstHistPt == null && (lat - firstLatLng.latitude).abs() < 0.0001 && (lng - firstLatLng.longitude).abs() < 0.0001) {
+              firstHistPt = pt;
+            }
+            if ((lat - lastLatLng.latitude).abs() < 0.0001 && (lng - lastLatLng.longitude).abs() < 0.0001) {
+              lastHistPt = pt;
+            }
+          }
+
+          final startT = _parseGpsDateTime(firstHistPt?["gps_time"]);
+          final endT = _parseGpsDateTime(lastHistPt?["gps_time"]);
+          int tripMins = 0;
+          if (startT != null && endT != null) {
+            tripMins = endT.difference(startT).inMinutes.abs();
+          }
+
+          final startTStr = _parseTime(firstHistPt?["gps_time"]);
+          final endTStr = _parseTime(lastHistPt?["gps_time"]);
+          final fromAddr = firstHistPt?["address"] ?? "Trip Start";
+          final toAddr = lastHistPt?["address"] ?? "Trip End";
+
+          events.add(
+            _TimelineEvent(
+              time: startTStr != "-" && endTStr != "-" ? "$startTStr - $endTStr" : startTStr,
+              parsedTime: startT ?? DateTime(1970),
+              label: "🚗 Trip • ${_formatDist(dist)}",
+              sublabel: "Distance: ${_formatDist(dist)} • Duration: ${tripMins > 0 ? '$tripMins mins' : '< 1 min'}\nFrom: $fromAddr\nTo: $toAddr",
+              color: _orange,
+              icon: Icons.directions_car_rounded,
+            ),
+          );
         }
       }
+    }
 
-      if (!isInsideGeofence) {
-        final emoji = _getEmojiForPlace(place);
-        events.add(
-          _TimelineEvent(
-            time: "$arrivalTime - $departureTime",
-            parsedTime: _parseGpsDateTime(stop["start_time"]) ?? DateTime(1970),
-            label: "$emoji $place",
-            sublabel:
-                "Arrival : $arrivalTime\nDeparture : $departureTime\nStayed : ${_formatStayed(duration)}",
-            color: Colors.blueAccent,
-            icon: Icons.pause_circle_rounded,
-          ),
-        );
-      }
+    // 4. All Detected Stops
+    for (int i = 0; i < detectedStops.length; i++) {
+      final stop = detectedStops[i];
+      final duration = stop["duration"] as int? ?? stop["duration_minutes"] as int? ?? 0;
+      final place = stop["place_name"] as String? ?? "Visited Location";
+      final arrivalTime = _parseTime(stop["start_time"] ?? stop["gps_time"]);
+      final departureTime = _parseTime(stop["end_time"] ?? stop["gps_time"]);
+      final stopAddress = stop["address"] ?? "";
+
+      final emoji = _getEmojiForPlace(place);
+      events.add(
+        _TimelineEvent(
+          time: arrivalTime != departureTime && departureTime != "-"
+              ? "$arrivalTime - $departureTime"
+              : arrivalTime,
+          parsedTime: _parseGpsDateTime(stop["start_time"] ?? stop["gps_time"]) ?? DateTime(1970),
+          label: "$emoji $place",
+          sublabel: "Arrival: $arrivalTime • Departure: $departureTime • Stayed: ${_formatStayed(duration)}" +
+              (stopAddress.isNotEmpty ? "\n$stopAddress" : ""),
+          color: Colors.blueAccent,
+          icon: Icons.pause_circle_rounded,
+        ),
+      );
     }
 
     // 4. Day Ended At (Last GPS location)
@@ -1484,23 +1906,27 @@ class _HistoryPageState extends State<HistoryPage> {
               circles: _buildCircles(),
               onMapCreated: (controller) {
                 _mapController = controller;
-                if (history.isNotEmpty) {
-                  final lat =
-                      double.tryParse(
-                        history.first["latitude"]?.toString() ?? "",
-                      ) ??
-                      0.0;
-                  final lng =
-                      double.tryParse(
-                        history.first["longitude"]?.toString() ?? "",
-                      ) ??
-                      0.0;
-                  if (lat != 0.0) {
-                    _mapController?.animateCamera(
-                      CameraUpdate.newCameraPosition(
-                        CameraPosition(target: LatLng(lat, lng), zoom: 14),
-                      ),
-                    );
+                if (_isStationaryDay(history) && history.isNotEmpty) {
+                  final pt = history.first;
+                  final lat = double.tryParse(pt["latitude"]?.toString() ?? "") ?? 0.0;
+                  final lng = double.tryParse(pt["longitude"]?.toString() ?? "") ?? 0.0;
+                  if (lat != 0.0 && lng != 0.0) {
+                    Future.delayed(const Duration(milliseconds: 300), () {
+                      _mapController?.animateCamera(
+                        CameraUpdate.newCameraPosition(
+                          CameraPosition(target: LatLng(lat, lng), zoom: 16),
+                        ),
+                      );
+                    });
+                  }
+                } else {
+                  final segments = _snappedSegments.isNotEmpty
+                      ? _snappedSegments
+                      : _getCleanRouteSegments();
+                  if (segments.isNotEmpty) {
+                    Future.delayed(const Duration(milliseconds: 300), () {
+                      _fitCameraToBounds(segments);
+                    });
                   }
                 }
               },

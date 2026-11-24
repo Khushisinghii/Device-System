@@ -19,7 +19,7 @@ class _DeviceInfoPageState extends State<DeviceInfoPage> {
   static const Color _orange = Color(0xFFFF6600);
 
   final String baseUrl =
-      "https://galleries-symphony-euros-addressing.trycloudflare.com";
+      "https://ireland-calculations-chair-unfortunately.trycloudflare.com";
   Map<String, dynamic> data = {};
   bool loading = true;
   Timer? _refreshTimer;
@@ -210,64 +210,92 @@ class _DeviceInfoPageState extends State<DeviceInfoPage> {
                   const SizedBox(height: 16),
 
                   // Status card
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 16,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _card,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.white.withOpacity(0.07)),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 10,
-                          height: 10,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color:
-                                (data["status"]?.toString().toUpperCase() ==
-                                    "ONLINE")
-                                ? Colors.green
-                                : Colors.redAccent,
-                            boxShadow: [
-                              BoxShadow(
-                                color:
-                                    (data["status"]?.toString().toUpperCase() ==
-                                        "ONLINE")
-                                    ? Colors.green.withOpacity(0.5)
-                                    : Colors.red.withOpacity(0.5),
-                                blurRadius: 8,
-                              ),
-                            ],
-                          ),
+                  Builder(
+                    builder: (context) {
+                      final String statusStr =
+                          (data["status"] ?? "").toString().toUpperCase();
+                      final lat = double.tryParse(data["latitude"]?.toString() ?? "") ?? 0.0;
+                      final lng = double.tryParse(data["longitude"]?.toString() ?? "") ?? 0.0;
+                      final bool hasCoordinates = (lat != 0.0 && lng != 0.0);
+
+                      bool isOnline = false;
+                      if (hasCoordinates) {
+                        DateTime? lastUp;
+                        if (data["last_update"] != null) {
+                          try {
+                            final parts = data["last_update"].toString().trim().split(" ");
+                            if (parts.length >= 2) {
+                              final dp = parts[0].split("-");
+                              final tp = parts[1].split(":");
+                              int hour = int.parse(tp[0]);
+                              if (parts.length > 2 && parts[2].toUpperCase() == "PM" && hour < 12) hour += 12;
+                              if (parts.length > 2 && parts[2].toUpperCase() == "AM" && hour == 12) hour = 0;
+                              lastUp = DateTime(int.parse(dp[2]), int.parse(dp[1]), int.parse(dp[0]), hour, int.parse(tp[1]), int.parse(tp[2]));
+                            }
+                          } catch (_) {}
+                        }
+                        if (lastUp != null) {
+                          final ageSec = DateTime.now().difference(lastUp).inSeconds.abs();
+                          if (ageSec <= 60 && statusStr != "OFFLINE") {
+                            isOnline = true;
+                          }
+                        } else if (data["is_online"] == true || statusStr == "ONLINE" || statusStr == "VALID") {
+                          isOnline = true;
+                        }
+                      }
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 16,
                         ),
-                        const SizedBox(width: 12),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        decoration: BoxDecoration(
+                          color: _card,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.white.withOpacity(0.07)),
+                        ),
+                        child: Row(
                           children: [
-                            Text(
-                              "Tracker Status",
-                              style: TextStyle(
-                                color: Colors.grey.shade500,
-                                fontSize: 11,
+                            Container(
+                              width: 10,
+                              height: 10,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: isOnline ? Colors.green : Colors.redAccent,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: isOnline
+                                        ? Colors.green.withOpacity(0.5)
+                                        : Colors.red.withOpacity(0.5),
+                                    blurRadius: 8,
+                                  ),
+                                ],
                               ),
                             ),
-                            Text(
-                              data["status"]?.toString().toUpperCase() ??
-                                  "OFFLINE",
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                              ),
+                            const SizedBox(width: 12),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "Tracker Status",
+                                  style: TextStyle(
+                                    color: Colors.grey.shade500,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                                Text(
+                                  isOnline ? "ONLINE" : "OFFLINE",
+                                  style: TextStyle(
+                                    color: isOnline ? Colors.green : Colors.redAccent,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
-                      ],
-                    ),
+                      );
+                    },
                   ),
 
                   const SizedBox(height: 30),

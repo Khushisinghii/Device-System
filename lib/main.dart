@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'core/services/firebase_service.dart';
 import 'core/constants/firebase_options.dart';
 import 'core/services/notification_helper.dart';
+import 'core/services/api_service.dart';
 import 'routes/app_router.dart';
 import 'pages/auth/login_page.dart';
 import 'pages/auth/loading_page.dart';
@@ -44,8 +45,18 @@ class _MyAppState extends State<MyApp> {
       final bool loggedIn = prefs.getBool("isLoggedIn") ?? false;
       final String userRole = prefs.getString("role") ?? "";
       final int id = prefs.getInt("userId") ?? 0;
+      final String token = prefs.getString("jwt_token") ?? "";
 
-      if (loggedIn && id != 0) {
+      // Only consider logged in if we have a valid JWT token
+      final bool hasValidSession = loggedIn && id != 0 && token.isNotEmpty;
+
+      if (!hasValidSession && loggedIn) {
+        // Clear invalid/stale session so app prompts for clean login
+        await prefs.setBool("isLoggedIn", false);
+        await prefs.remove("jwt_token");
+      }
+
+      if (hasValidSession && id != 0) {
         FcmService.updateTokenOnServer(id);
       }
 
@@ -61,7 +72,7 @@ class _MyAppState extends State<MyApp> {
 
       if (mounted) {
         setState(() {
-          _isLoggedIn = loggedIn;
+          _isLoggedIn = hasValidSession;
           _role = userRole;
           _userId = id;
           _initialized = true;
@@ -72,6 +83,7 @@ class _MyAppState extends State<MyApp> {
       // Still show the login page as fallback instead of black screen
       if (mounted) {
         setState(() {
+          _isLoggedIn = false;
           _initialized = true;
         });
       }
@@ -96,14 +108,21 @@ class _MyAppState extends State<MyApp> {
     }
 
     return MaterialApp(
+      navigatorKey: ApiService.navigatorKey,
       debugShowCheckedModeBanner: false,
-      home: _isLoggedIn
-          ? LoadingPage(
-              role: _role,
-              userId: _userId,
-            )
-          : const LoginPage(),
-      onGenerateRoute: AppRouter.generateRoute,
+      initialRoute: _isLoggedIn ? AppRouter.loading : AppRouter.login,
+      onGenerateRoute: (settings) {
+        if (settings.name == AppRouter.loading) {
+          final args = settings.arguments as Map<String, dynamic>? ?? {};
+          return MaterialPageRoute(
+            builder: (_) => LoadingPage(
+              role: args['role'] as String? ?? _role,
+              userId: args['userId'] as int? ?? _userId,
+            ),
+          );
+        }
+        return AppRouter.generateRoute(settings);
+      },
     );
   }
 }

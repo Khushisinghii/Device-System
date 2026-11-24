@@ -270,7 +270,7 @@ class _LoginPageState extends State<LoginPage> {
 
                                   http.Response response;
                                   try {
-                                    response = await ApiService.post(
+                                    response = await http.post(
                                       Uri.parse(ApiRoutes.login),
                                       headers: headers,
                                       body: jsonEncode({
@@ -327,6 +327,9 @@ class _LoginPageState extends State<LoginPage> {
                                   if (data["status"] == true) {
                                     final prefs =
                                         await SharedPreferences.getInstance();
+                                    // Wipe any previous session completely so new user starts completely fresh
+                                    await prefs.clear();
+
                                     if (data["token"] != null) {
                                       await prefs.setString(
                                         "jwt_token",
@@ -346,7 +349,7 @@ class _LoginPageState extends State<LoginPage> {
                                       data["user"]["id"],
                                     );
                                     if (!mounted) return;
-                                    Navigator.pushReplacement(
+                                    Navigator.pushAndRemoveUntil(
                                       context,
                                       MaterialPageRoute(
                                         builder: (_) => LoadingPage(
@@ -354,6 +357,7 @@ class _LoginPageState extends State<LoginPage> {
                                           userId: data["user"]["id"],
                                         ),
                                       ),
+                                      (route) => false,
                                     );
                                   } else {
                                     AppDialogs.showError(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
+import 'package:http/http.dart' as http;
 import '../../core/services/api_service.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 
@@ -50,9 +51,9 @@ class _SignupPageState extends State<SignupPage> {
         fcmToken = await FirebaseMessaging.instance.getToken();
       } catch (_) {}
 
-      final response = await ApiService.post(
+      final response = await http.post(
         Uri.parse(
-          "https://galleries-symphony-euros-addressing.trycloudflare.com/signup",
+          "https://ireland-calculations-chair-unfortunately.trycloudflare.com/signup",
         ),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({

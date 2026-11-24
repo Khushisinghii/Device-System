@@ -10,7 +10,7 @@ import '../../pages/history/history_page.dart';
 
 // --- CONFIGURATION ---
 const String BASE_URL =
-    "https://galleries-symphony-euros-addressing.trycloudflare.com";
+    "https://ireland-calculations-chair-unfortunately.trycloudflare.com";
 
 class User {
   final int id;
@@ -261,7 +261,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }
 
   Widget _buildUserCard(User user) {
-    final bool isOnline = user.status?.toUpperCase() == "ONLINE";
+    final statusUpper = user.status?.toUpperCase() ?? "";
+    final bool isOnline = statusUpper == "ONLINE" || statusUpper == "VALID";
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -574,7 +575,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
   // --- DETAILS MODAL ---
 
   void _showDetailsSheet(User user) {
-    final bool isOnline = user.status?.toUpperCase() == "ONLINE";
+    final statusUpper = user.status?.toUpperCase() ?? "";
+    final bool isOnline = statusUpper == "ONLINE" || statusUpper == "VALID";
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,

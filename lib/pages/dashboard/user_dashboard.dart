@@ -24,7 +24,7 @@ class _UserDashboardState extends State<UserDashboard> {
   static const Color _orange = Color(0xFFFF6600);
 
   final String baseUrl =
-      "https://galleries-symphony-euros-addressing.trycloudflare.com";
+      "https://ireland-calculations-chair-unfortunately.trycloudflare.com";
   Map<String, dynamic> data = {};
   bool loading = true;
   bool hasError = false;
@@ -239,12 +239,60 @@ class _UserDashboardState extends State<UserDashboard> {
     );
   }
 
+  DateTime? _parseLastUpdate(String? raw) {
+    if (raw == null || raw.trim().isEmpty) return null;
+    try {
+      final clean = raw.trim();
+      final parts = clean.split(" ");
+      if (parts.length >= 2) {
+        final dateParts = parts[0].split("-");
+        final timeParts = parts[1].split(":");
+        int day = int.parse(dateParts[0]);
+        int month = int.parse(dateParts[1]);
+        int year = int.parse(dateParts[2]);
+
+        int hour = int.parse(timeParts[0]);
+        int minute = int.parse(timeParts[1]);
+        int second = int.parse(timeParts[2]);
+
+        if (parts.length > 2) {
+          final amPm = parts[2].toUpperCase();
+          if (amPm == "PM" && hour < 12) hour += 12;
+          if (amPm == "AM" && hour == 12) hour = 0;
+        }
+        return DateTime(year, month, day, hour, minute, second);
+      }
+      return DateTime.tryParse(clean);
+    } catch (_) {
+      return null;
+    }
+  }
+
   // ── PROFILE CARD ────────────────────────────────────────────
   Widget _buildProfileCard() {
     final String name = data["name"] ?? "User";
     final String username = data["username"] ?? "username";
-    final bool isOnline =
-        (data["status"]?.toString().toUpperCase() ?? "") == "ONLINE";
+    final String statusStr =
+        (data["status"]?.toString().toUpperCase() ?? "");
+
+    // Must have valid lat/long coordinates coming in
+    final lat = double.tryParse(data["latitude"]?.toString() ?? "") ?? 0.0;
+    final lng = double.tryParse(data["longitude"]?.toString() ?? "") ?? 0.0;
+    final bool hasCoordinates = (lat != 0.0 && lng != 0.0);
+
+    // Online only if coordinates exist and received within 1 minute (60 seconds)
+    bool isOnline = false;
+    if (hasCoordinates) {
+      final lastUp = _parseLastUpdate(data["last_update"]?.toString());
+      if (lastUp != null) {
+        final ageSec = DateTime.now().difference(lastUp).inSeconds.abs();
+        if (ageSec <= 60 && statusStr != "OFFLINE") {
+          isOnline = true;
+        }
+      } else if (data["is_online"] == true || statusStr == "ONLINE" || statusStr == "VALID") {
+        isOnline = true;
+      }
+    }
     final String battery = data["battery"] != null
         ? "${data["battery"]}%"
         : "--";
@@ -366,7 +414,7 @@ class _UserDashboardState extends State<UserDashboard> {
               const SizedBox(width: 6),
               Icon(
                 Icons.battery_charging_full_rounded,
-                color: (data["battery"] as int? ?? 0) > 20
+                color: (int.tryParse(data["battery"]?.toString() ?? "0") ?? 0) > 20
                     ? Colors.green
                     : Colors.red,
                 size: 16,

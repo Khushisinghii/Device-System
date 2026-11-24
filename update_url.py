@@ -2,7 +2,7 @@ import os
 import re
 
 base_dir = r'C:\Users\vv646\go_go\lib'
-new_url = 'https://galleries-symphony-euros-addressing.trycloudflare.com'
+new_url = 'https://ireland-calculations-chair-unfortunately.trycloudflare.com'
 
 # Regex to match any old cloudflare url (e.g. https://pharmacy-although... or https://genetics-ports...)
 url_pattern = re.compile(r'https://[a-zA-Z0-9-]+\.trycloudflare\.com')
