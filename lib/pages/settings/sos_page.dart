@@ -17,9 +17,6 @@ class _SosPageState extends State<SosPage> {
   static const Color _card = Color(0xFF1A1D21);
   static const Color _orange = Color(0xFFFF6600);
 
-  static const MethodChannel _smsChannel =
-      MethodChannel('com.example.go_go/direct_sms');
-
   // Contacts & Tracker Device
   String? _imei;
   String? _simNumber;
@@ -174,34 +171,20 @@ class _SosPageState extends State<SosPage> {
     return 'familynum123456 $n3';
   }
 
-  /// Sends direct SMS from within the app without launching the external SMS page
+  /// Sends SMS to tracker device via system SMS intent (Safe, no dangerous permissions)
   Future<bool> _sendDirectSmsInternal({
     required String targetPhone,
     required String message,
   }) async {
     try {
-      final res = await _smsChannel.invokeMethod<bool>('sendDirectSms', {
-        'phone': targetPhone,
-        'message': message,
-      });
-      return res == true;
-    } on PlatformException catch (e) {
-      debugPrint("Direct SMS error: ${e.code} - ${e.message}");
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              e.code == "PERMISSION_DENIED"
-                  ? "SMS permission denied. Please grant SMS permission to send directly."
-                  : "SMS failed: ${e.message ?? 'Unknown error'}",
-            ),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
+      final uri = Uri.parse('sms:$targetPhone?body=${Uri.encodeComponent(message)}');
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri);
+        return true;
       }
       return false;
     } catch (e) {
-      debugPrint("Direct SMS error: $e");
+      debugPrint("SMS error: $e");
       return false;
     }
   }
