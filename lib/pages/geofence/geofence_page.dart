@@ -83,7 +83,7 @@ class _GeofencePageState extends State<GeofencePage> {
   static const Color _orange = Color(0xFFFF6600);
 
   final String _baseUrl =
-      "https://ireland-calculations-chair-unfortunately.trycloudflare.com";
+      "https://b58k998z-5000.inc1.devtunnels.ms";
   List<GeofenceZone> _zones = [];
   bool _loading = true;
   int? _userId;

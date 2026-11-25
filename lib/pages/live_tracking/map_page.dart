@@ -27,7 +27,7 @@ class _MapPageState extends State<MapPage> with TickerProviderStateMixin {
   final Color panelBg = const Color(0xF2FFFFFF);
 
   final String baseUrl =
-      "https://ireland-calculations-chair-unfortunately.trycloudflare.com";
+      "https://b58k998z-5000.inc1.devtunnels.ms";
 
   // --- Map state ---
   GoogleMapController? mapController;

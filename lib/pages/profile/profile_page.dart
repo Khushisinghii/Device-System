@@ -28,7 +28,7 @@ class _ProfilePageState extends State<ProfilePage> {
   static const Color _orange = Color(0xFFFF6600);
 
   final String baseUrl =
-      "https://ireland-calculations-chair-unfortunately.trycloudflare.com";
+      "https://b58k998z-5000.inc1.devtunnels.ms";
   Map<String, dynamic>? data;
   bool loading = true;
   Timer? _refreshTimer;

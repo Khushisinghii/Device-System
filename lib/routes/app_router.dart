@@ -145,7 +145,7 @@ class AppRouter {
 
 class ApiRoutes {
   static const String baseUrl =
-      'https://ireland-calculations-chair-unfortunately.trycloudflare.com';
+      'https://b58k998z-5000.inc1.devtunnels.ms';
 
   // -- AUTH --
   static const String login = '$baseUrl/login';

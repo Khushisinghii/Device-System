@@ -10,7 +10,7 @@ import '../../pages/history/history_page.dart';
 
 // --- CONFIGURATION ---
 const String BASE_URL =
-    "https://ireland-calculations-chair-unfortunately.trycloudflare.com";
+    "https://b58k998z-5000.inc1.devtunnels.ms";
 
 class User {
   final int id;

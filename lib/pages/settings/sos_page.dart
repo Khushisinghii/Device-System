@@ -67,7 +67,7 @@ class _SosPageState extends State<SosPage> {
     try {
       final res = await ApiService.get(
         Uri.parse(
-          'https://ireland-calculations-chair-unfortunately.trycloudflare.com/user/sos/${widget.userId}',
+          'https://b58k998z-5000.inc1.devtunnels.ms/user/sos/${widget.userId}',
         ),
       );
       if (res.statusCode == 200) {
@@ -104,7 +104,7 @@ class _SosPageState extends State<SosPage> {
       // Load device SIM number from user_dashboard
       final dashRes = await ApiService.get(
         Uri.parse(
-          'https://ireland-calculations-chair-unfortunately.trycloudflare.com/user_dashboard/${widget.userId}',
+          'https://b58k998z-5000.inc1.devtunnels.ms/user_dashboard/${widget.userId}',
         ),
       );
       if (dashRes.statusCode == 200) {
@@ -134,7 +134,7 @@ class _SosPageState extends State<SosPage> {
       };
       final res = await ApiService.post(
         Uri.parse(
-          'https://ireland-calculations-chair-unfortunately.trycloudflare.com/user/sos/${widget.userId}',
+          'https://b58k998z-5000.inc1.devtunnels.ms/user/sos/${widget.userId}',
         ),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(payload),

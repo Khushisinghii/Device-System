@@ -53,7 +53,7 @@ class _SignupPageState extends State<SignupPage> {
 
       final response = await http.post(
         Uri.parse(
-          "https://ireland-calculations-chair-unfortunately.trycloudflare.com/signup",
+          "https://b58k998z-5000.inc1.devtunnels.ms/signup",
         ),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({

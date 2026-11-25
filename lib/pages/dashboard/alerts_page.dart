@@ -37,7 +37,7 @@ class _AlertsPageState extends State<AlertsPage> {
   static const Color _orange = Color(0xFFFF6600);
 
   final String baseUrl =
-      "https://ireland-calculations-chair-unfortunately.trycloudflare.com";
+      "https://b58k998z-5000.inc1.devtunnels.ms";
   List<AppAlert> _alerts = [];
   bool _loading = true;
   bool _hasError = false;

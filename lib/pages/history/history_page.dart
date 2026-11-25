@@ -21,7 +21,7 @@ class _HistoryPageState extends State<HistoryPage> {
   static const Color _orange = Color(0xFFFF6600);
 
   final String baseUrl =
-      "https://ireland-calculations-chair-unfortunately.trycloudflare.com";
+      "https://b58k998z-5000.inc1.devtunnels.ms";
 
   DateTime selectedDate = DateTime.now();
   bool loading = true;
